@@ -1,0 +1,135 @@
+# Agent Context Guard
+
+Scan local context before it is handed to an AI agent.
+
+The tool checks files for likely secrets and hostile instructions, then writes a Markdown bundle with risky spans replaced. It is meant to run before copying a repo, issue, README, or log into an agent workflow.
+
+```bash
+pipx install agent-context-guard
+acg scan . --pack safe-context.md --fail-on high
+```
+
+`promptfence` is installed as a shorter alias:
+
+```bash
+promptfence scan . --pack safe-context.md --fail-on high
+```
+
+## quick demo
+
+```bash
+acg scan examples/unsafe_repo --pack /tmp/safe-context.md --json
+```
+
+Example result:
+
+```json
+{
+  "risk": "critical",
+  "files_scanned": 3,
+  "findings": [
+    {"severity": "critical", "kind": "secret", "file": "examples/unsafe_repo/app.py", "rule": "openai_key"},
+    {"severity": "high", "kind": "prompt_injection", "file": "examples/unsafe_repo/README.md", "rule": "ignore_previous_instructions"}
+  ]
+}
+```
+
+The generated pack keeps normal context and rewrites matched spans:
+
+```text
+client = OpenAI(api_key="<REDACTED:openai_key>")
+<FLAGGED_PROMPT_INJECTION:ignore_previous_instructions>
+```
+
+## what it checks
+
+Secrets:
+
+- OpenAI, OpenRouter, Anthropic, GitHub, AWS and Slack tokens
+- private key blocks
+- JWT-like strings
+
+Prompt injection patterns:
+
+- instruction override text
+- requests to reveal system or developer prompts
+- requests to send or upload credentials
+- role override text
+- suspicious shell or network instructions
+
+Packing behavior:
+
+- includes a file tree and risk summary
+- redacts secrets inline
+- flags prompt injection text inline
+- skips large or binary files
+- supports JSON output and CI exit codes
+
+## usage
+
+```bash
+acg scan PATH [options]
+```
+
+Common commands:
+
+```bash
+# scan and write a safe Markdown pack
+acg scan . --pack safe-context.md
+
+# fail CI if any high or critical finding appears
+acg scan . --fail-on high
+
+# JSON for scripts
+acg scan . --json
+
+# scan piped text
+curl -L https://example.com/issue.md | promptfence scan - --fail-on high
+
+# keep the pack small
+acg scan . --pack safe-context.md --max-file-bytes 12000 --max-total-bytes 180000
+
+# skip noisy paths
+acg scan . --exclude node_modules --exclude dist --exclude "*.lock"
+```
+
+## exit codes
+
+- `0`: no finding at or above the selected threshold
+- `2`: threshold exceeded
+- `1`: runtime error
+
+## CI
+
+```yaml
+name: context-guard
+on: [push, pull_request]
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install .
+      - run: acg scan . --fail-on high --pack safe-context.md
+```
+
+## limits
+
+This is a local preflight check. It uses rules, not a sandbox or model. Treat a clean report as a useful signal, not proof that the context is safe.
+
+## development
+
+```bash
+python3 -m venv .venv
+. .venv/bin/activate
+pip install -e . pytest
+pytest -q
+acg scan examples/unsafe_repo --pack /tmp/safe-context.md --json
+```
+
+## license
+
+MIT
