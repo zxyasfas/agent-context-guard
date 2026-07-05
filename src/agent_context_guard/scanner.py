@@ -65,6 +65,8 @@ def should_exclude(path: Path, patterns: Iterable[str]) -> bool:
     parts = set(path.parts)
     if parts & DEFAULT_EXCLUDES:
         return True
+    if any(part.endswith(".egg-info") for part in path.parts):
+        return True
     text = path.as_posix()
     for pattern in patterns:
         normalized = pattern.strip("/")

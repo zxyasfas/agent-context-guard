@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agent-context-guard"
-version = "0.2.0"
+version = "0.2.1"
 description = "Pack code for AI agents without leaking secrets or prompt-injection traps."
 readme = "README.md"
 requires-python = ">=3.10"
