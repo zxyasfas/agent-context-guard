@@ -63,7 +63,7 @@ Packing behavior:
 - redacts secrets inline
 - flags prompt injection text inline
 - skips large or binary files
-- supports JSON output and CI exit codes
+- supports JSON, SARIF and CI exit codes
 
 ## usage
 
@@ -83,6 +83,9 @@ acg scan . --fail-on high
 # JSON for scripts
 acg scan . --json
 
+# SARIF for code scanning tools
+acg scan . --sarif acg.sarif
+
 # scan piped text
 curl -L https://example.com/issue.md | promptfence scan - --fail-on high
 
@@ -99,13 +102,20 @@ acg scan . --exclude node_modules --exclude dist --exclude "*.lock"
 - `2`: threshold exceeded
 - `1`: runtime error
 
-## CI
+## GitHub code scanning
+
+The repository includes `.github/workflows/context-guard.yml`. It writes `acg.sarif` and uploads it to GitHub code scanning.
+
+To use the same pattern in another repo:
 
 ```yaml
-name: context-guard
+name: context guard
 on: [push, pull_request]
+permissions:
+  contents: read
+  security-events: write
 jobs:
-  guard:
+  scan:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -113,7 +123,19 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install .
-      - run: acg scan . --fail-on high --pack safe-context.md
+      - id: scan
+        run: |
+          set +e
+          acg scan . --sarif acg.sarif --fail-on high
+          code=$?
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          exit 0
+      - uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: acg.sarif
+      - if: steps.scan.outputs.exit_code != '0'
+        run: exit 1
 ```
 
 ## limits

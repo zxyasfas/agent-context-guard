@@ -66,7 +66,13 @@ def should_exclude(path: Path, patterns: Iterable[str]) -> bool:
     if parts & DEFAULT_EXCLUDES:
         return True
     text = path.as_posix()
-    return any(fnmatch(text, p) or fnmatch(path.name, p) for p in patterns)
+    for pattern in patterns:
+        normalized = pattern.strip("/")
+        if fnmatch(text, pattern) or fnmatch(path.name, pattern):
+            return True
+        if normalized and (text == normalized or text.startswith(f"{normalized}/")):
+            return True
+    return False
 
 
 def looks_binary(data: bytes) -> bool:

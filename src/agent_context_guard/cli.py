@@ -8,6 +8,7 @@ from pathlib import Path
 from . import __version__
 from .packer import render_context_pack
 from .policy import SEVERITY_ORDER
+from .sarif import render_sarif
 from .scanner import exceeds_threshold, scan_path, scan_text_input
 
 
@@ -22,6 +23,7 @@ def build_parser() -> argparse.ArgumentParser:
     scan = sub.add_parser("scan", help="scan a path and optionally write a safe context pack")
     scan.add_argument("path", help="file or directory to scan")
     scan.add_argument("--pack", help="write a safe Markdown context pack")
+    scan.add_argument("--sarif", help="write SARIF results for code scanning tools")
     scan.add_argument("--json", action="store_true", help="print machine-readable JSON")
     scan.add_argument("--fail-on", choices=sorted(SEVERITY_ORDER, key=SEVERITY_ORDER.get), help="exit 2 if this severity or above is present")
     scan.add_argument("--exclude", action="append", default=[], help="glob/name to exclude; can be repeated")
@@ -49,12 +51,16 @@ def run_scan(args: argparse.Namespace) -> int:
         report = scan_path(args.path, excludes=args.exclude, max_file_bytes=args.max_file_bytes)
     if args.pack:
         Path(args.pack).write_text(render_context_pack(report, max_total_bytes=args.max_total_bytes), encoding="utf-8")
+    if args.sarif:
+        Path(args.sarif).write_text(json.dumps(render_sarif(report), ensure_ascii=False, indent=2), encoding="utf-8")
     if args.json:
         print(json.dumps(report.to_dict(), ensure_ascii=False, indent=2))
     else:
         print_human(report)
         if args.pack:
             print(f"Pack written: {args.pack}")
+        if args.sarif:
+            print(f"SARIF written: {args.sarif}")
     return 2 if exceeds_threshold(report, args.fail_on) else 0
 
 

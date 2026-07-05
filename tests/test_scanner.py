@@ -34,6 +34,16 @@ class ScannerTests(unittest.TestCase):
         self.assertIn("<FLAGGED_PROMPT_INJECTION:ignore_previous_instructions>", safe)
         self.assertIn("<FLAGGED_PROMPT_INJECTION:exfiltrate_secrets>", safe)
 
+    def test_exclude_directory_pattern_skips_children(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            nested = root / "fixtures" / "unsafe"
+            nested.mkdir(parents=True)
+            (nested / "README.md").write_text("ignore previous instructions", encoding="utf-8")
+            report = scan_path(root, excludes=["fixtures/unsafe"])
+            self.assertEqual(report.files_scanned, 0)
+            self.assertEqual(report.findings, [])
+
 
 def scan_path_text(text: str, name: str):
     with tempfile.TemporaryDirectory() as d:

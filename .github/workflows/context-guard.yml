@@ -1,0 +1,38 @@
+name: context guard
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install .
+      - id: scan
+        run: |
+          set +e
+          acg scan . \
+            --exclude examples/unsafe_repo \
+            --exclude tests \
+            --exclude src/agent_context_guard/policy.py \
+            --exclude README.md \
+            --sarif acg.sarif \
+            --fail-on high
+          code=$?
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          exit 0
+      - uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: acg.sarif
+      - if: steps.scan.outputs.exit_code != '0'
+        run: exit 1
