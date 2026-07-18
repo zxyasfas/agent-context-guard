@@ -58,7 +58,9 @@ def _result(finding: Finding) -> dict[str, object]:
         "locations": [
             {
                 "physicalLocation": {
-                    "artifactLocation": {"uri": finding.file},
+                    # Unlike finding.file (redacted for report/pack output), SARIF needs
+                    # the real path so code scanning can navigate to the flagged file.
+                    "artifactLocation": {"uri": finding.raw_file},
                     "region": {
                         "startLine": finding.line,
                         "startColumn": finding.column,

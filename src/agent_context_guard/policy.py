@@ -22,7 +22,18 @@ SECRET_RULES: tuple[Rule, ...] = (
     Rule("github_token", "secret", "critical", re.compile(r"gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}"), "GitHub token"),
     Rule("aws_access_key", "secret", "critical", re.compile(r"AKIA[0-9A-Z]{16}"), "AWS access key id"),
     Rule("slack_token", "secret", "critical", re.compile(r"xox[baprs]-[A-Za-z0-9-]{20,}"), "Slack token"),
-    Rule("private_key", "secret", "critical", re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH |DSA |)?PRIVATE KEY-----"), "Private key block"),
+    Rule(
+        "private_key",
+        "secret",
+        "critical",
+        re.compile(
+            r"-----BEGIN (?:RSA |EC |OPENSSH |DSA |ENCRYPTED |)?PRIVATE KEY-----"
+            r".*?"
+            r"-----END (?:RSA |EC |OPENSSH |DSA |ENCRYPTED |)?PRIVATE KEY-----",
+            re.DOTALL,
+        ),
+        "Private key block",
+    ),
     Rule("jwt_like_token", "secret", "medium", re.compile(r"eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"), "JWT-like token"),
 )
 
