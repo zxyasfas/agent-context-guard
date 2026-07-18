@@ -142,6 +142,8 @@ jobs:
 
 This is a local preflight check. It uses rules, not a sandbox or model. Treat a clean report as a useful signal, not proof that the context is safe.
 
+`benchmarks/` has a small labeled corpus and a runner that shows what the injection rules catch and miss, including false positives and obfuscation the regex does not handle. On the current corpus it catches 9 of 20 attacks; `benchmarks/README.md` has the breakdown.
+
 ## development
 
 ```bash
