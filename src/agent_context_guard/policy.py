@@ -26,8 +26,34 @@ SECRET_RULES: tuple[Rule, ...] = (
     Rule("jwt_like_token", "secret", "medium", re.compile(r"eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"), "JWT-like token"),
 )
 
+# Matches:
+#   ignore (all)? (previous|prior|above) instructions
+#   disregard (the)? (instructions|above|previous|prior|system prompt)
+#   forget (everything|what you were told|your instructions|prior|previous) instructions?
+_OVERRIDE_PATTERN = re.compile(
+    r"(?:"
+    # Original: ignore … instructions
+    r"ignore\s+(?:all\s+)?(?:previous|prior|above)\s+instructions"
+    r"|"
+    # New: disregard … (instructions|above|previous|prior|system prompt)
+    # Guard: must be followed by an instruction-related word, not an arbitrary noun
+    r"disregard\s+(?:the\s+)?(?:instructions?|above|previous|prior|system\s+prompt)"
+    r"|"
+    # New: forget everything / forget what you were told / forget (prior|previous) instructions
+    # Word-boundary on 'forget' prevents matching mid-word; guarded by what follows
+    r"\bforget\s+(?:everything\b|what\s+you\s+were\s+told\b|your\s+instructions?\b|(?:prior|previous)\s+instructions?\b)"
+    r")",
+    re.I,
+)
+
 PROMPT_INJECTION_RULES: tuple[Rule, ...] = (
-    Rule("ignore_previous_instructions", "prompt_injection", "high", re.compile(r"ignore (all )?(previous|prior|above) instructions", re.I), "Attempts to override prior instructions"),
+    Rule(
+        "override_instructions",
+        "prompt_injection",
+        "high",
+        _OVERRIDE_PATTERN,
+        "Attempts to override prior instructions",
+    ),
     Rule("reveal_system_prompt", "prompt_injection", "high", re.compile(r"(reveal|print|dump|show).{0,40}(system|developer) prompt", re.I), "Attempts to reveal hidden prompts"),
     Rule("exfiltrate_secrets", "prompt_injection", "high", re.compile(r"(exfiltrate|send|upload|post).{0,60}(secret|token|api key|credential)", re.I), "Attempts to exfiltrate secrets"),
     Rule("agent_role_override", "prompt_injection", "medium", re.compile(r"you are now (?:dan|developer|system|root|admin)|act as (?:system|developer|root)", re.I), "Attempts to change the agent role"),
