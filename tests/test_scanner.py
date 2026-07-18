@@ -3,7 +3,7 @@ import tempfile
 import unittest
 
 from agent_context_guard.packer import render_context_pack
-from agent_context_guard.scanner import exceeds_threshold, redact_text, sanitize_text, scan_path
+from agent_context_guard.scanner import exceeds_threshold, redact_text, sanitize_text, scan_path, scan_text
 
 
 class ScannerTests(unittest.TestCase):
@@ -32,6 +32,17 @@ class ScannerTests(unittest.TestCase):
             self.assertTrue(injections, text)
             for f in injections:
                 self.assertNotIn("sk-", f.preview, text)
+                self.assertIn("<REDACTED:openai_key>", f.preview, text)
+                self.assertIn("ignore previous instructions", f.preview, text)
+
+    def test_injection_preview_stays_bounded_next_to_huge_token(self):
+        blob = "a" * 200_000
+        text = "ignore previous instructions " + blob
+        findings = scan_text("notes.md", text)
+        injections = [f for f in findings if f.kind == "prompt_injection"]
+        self.assertTrue(injections)
+        for f in injections:
+            self.assertLess(len(f.preview), 200)
 
     def test_detects_disregard_and_forget_overrides(self):
         for text in (
