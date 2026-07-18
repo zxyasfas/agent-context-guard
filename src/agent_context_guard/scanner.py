@@ -103,7 +103,13 @@ def line_col(text: str, index: int) -> tuple[int, int]:
 def preview(text: str, start: int, end: int) -> str:
     lo = max(0, start - 36)
     hi = min(len(text), end + 36)
-    chunk = text[lo:hi].replace("\n", " ")
+    # Grow to whitespace boundaries so a secret clipped by the window still
+    # matches the redaction patterns.
+    while lo > 0 and not text[lo - 1].isspace():
+        lo -= 1
+    while hi < len(text) and not text[hi].isspace():
+        hi += 1
+    chunk = redact_text(text[lo:hi]).replace("\n", " ")
     return " ".join(chunk.split())
 
 
