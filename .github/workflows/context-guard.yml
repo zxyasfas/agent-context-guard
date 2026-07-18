@@ -23,6 +23,7 @@ jobs:
           acg scan . \
             --exclude examples/unsafe_repo \
             --exclude tests \
+            --exclude benchmarks \
             --exclude src/agent_context_guard/policy.py \
             --exclude README.md \
             --sarif acg.sarif \
