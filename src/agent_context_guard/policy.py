@@ -34,7 +34,7 @@ PROMPT_INJECTION_RULES: tuple[Rule, ...] = (
         re.compile(
             r"(?:ignore|disregard)\s+(?:all\s+)?(?:the\s+)?(?:previous|prior|above)\s+instructions"
             r"|(?:ignore|disregard)\s+(?:all\s+)?the\s+instructions\s+above"
-            r"|forget\s+(?:everything|all)\s+(?:you\s+(?:were|have\s+been|'ve\s+been)\s+told|(?:i|we)\s+(?:said|told\s+you))",
+            r"|forget\s+(?:everything|all)\s+you(?:\s+were|\s+have\s+been|'ve\s+been)\s+told",
             re.I,
         ),
         "Attempts to override prior instructions",
