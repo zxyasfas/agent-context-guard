@@ -27,7 +27,18 @@ SECRET_RULES: tuple[Rule, ...] = (
 )
 
 PROMPT_INJECTION_RULES: tuple[Rule, ...] = (
-    Rule("ignore_previous_instructions", "prompt_injection", "high", re.compile(r"ignore (all )?(previous|prior|above) instructions", re.I), "Attempts to override prior instructions"),
+    Rule(
+        "ignore_previous_instructions",
+        "prompt_injection",
+        "high",
+        re.compile(
+            r"(?:ignore|disregard)\s+(?:all\s+)?(?:the\s+)?(?:previous|prior|above)\s+instructions"
+            r"|(?:ignore|disregard)\s+(?:all\s+)?the\s+instructions\s+above"
+            r"|forget\s+(?:everything|all)\s+(?:you\s+(?:were|have\s+been|'ve\s+been)\s+told|(?:i|we)\s+(?:said|told\s+you))",
+            re.I,
+        ),
+        "Attempts to override prior instructions",
+    ),
     Rule("reveal_system_prompt", "prompt_injection", "high", re.compile(r"(reveal|print|dump|show).{0,40}(system|developer) prompt", re.I), "Attempts to reveal hidden prompts"),
     Rule("exfiltrate_secrets", "prompt_injection", "high", re.compile(r"(exfiltrate|send|upload|post).{0,60}(secret|token|api key|credential)", re.I), "Attempts to exfiltrate secrets"),
     Rule("agent_role_override", "prompt_injection", "medium", re.compile(r"you are now (?:dan|developer|system|root|admin)|act as (?:system|developer|root)", re.I), "Attempts to change the agent role"),
