@@ -22,8 +22,8 @@ class Finding:
 
     def to_dict(self) -> dict[str, object]:
         data = asdict(self)
-        # raw_file exists only for SARIF navigability; reports meant for
-        # agent/human consumption should only ever see the redacted `file`.
+        # raw_file is for SARIF navigability (opt-in via --sarif-real-paths);
+        # drop it here so the JSON report doesn't include the real path.
         data.pop("raw_file")
         return data
 

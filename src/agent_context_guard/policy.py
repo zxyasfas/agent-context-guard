@@ -27,9 +27,9 @@ SECRET_RULES: tuple[Rule, ...] = (
         "secret",
         "critical",
         re.compile(
-            r"-----BEGIN (?:RSA |EC |OPENSSH |DSA |ENCRYPTED |)?PRIVATE KEY-----"
+            r"-----BEGIN (?P<pk_type>RSA |EC |OPENSSH |DSA |ENCRYPTED |)PRIVATE KEY-----"
             r".*?"
-            r"-----END (?:RSA |EC |OPENSSH |DSA |ENCRYPTED |)?PRIVATE KEY-----",
+            r"(?:-----END (?P=pk_type)PRIVATE KEY-----|\Z)",
             re.DOTALL,
         ),
         "Private key block",
