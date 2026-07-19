@@ -111,11 +111,16 @@ def _redact_window(window: str, window_start: int, secret_spans: Iterable[tuple[
     pieces = []
     cursor = 0
     for start, end, name in secret_spans:
-        if end <= window_start or start >= window_end:
+        if start >= window_end:
+            break
+        if end <= window_start:
             continue
         rel_start = max(0, start - window_start)
         rel_end = min(len(window), end - window_start)
         if rel_start < cursor:
+            # Overlaps a span already redacted above — extend the redacted
+            # region to cover it instead of letting its tail print verbatim.
+            cursor = max(cursor, rel_end)
             continue
         pieces.append(window[cursor:rel_start])
         pieces.append(f"<REDACTED:{name}>")
