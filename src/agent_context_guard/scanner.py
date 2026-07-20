@@ -100,14 +100,44 @@ def line_col(text: str, index: int) -> tuple[int, int]:
     return line, col
 
 
-def preview(text: str, start: int, end: int) -> str:
+def find_secret_spans(text: str) -> list[tuple[int, int, str]]:
+    spans = [(m.start(), m.end(), rule.name) for rule in SECRET_RULES for m in rule.pattern.finditer(text)]
+    spans.sort()
+    return spans
+
+
+def _redact_window(window: str, window_start: int, secret_spans: Iterable[tuple[int, int, str]]) -> str:
+    window_end = window_start + len(window)
+    pieces = []
+    cursor = 0
+    for start, end, name in secret_spans:
+        if start >= window_end:
+            break
+        if end <= window_start:
+            continue
+        rel_start = max(0, start - window_start)
+        rel_end = min(len(window), end - window_start)
+        if rel_start < cursor:
+            # Overlaps a span already redacted above — extend the redacted
+            # region to cover it instead of letting its tail print verbatim.
+            cursor = max(cursor, rel_end)
+            continue
+        pieces.append(window[cursor:rel_start])
+        pieces.append(f"<REDACTED:{name}>")
+        cursor = rel_end
+    pieces.append(window[cursor:])
+    return "".join(pieces)
+
+
+def preview(text: str, start: int, end: int, secret_spans: Iterable[tuple[int, int, str]] = ()) -> str:
     lo = max(0, start - 36)
     hi = min(len(text), end + 36)
-    chunk = text[lo:hi].replace("\n", " ")
+    chunk = _redact_window(text[lo:hi], lo, secret_spans).replace("\n", " ")
     return " ".join(chunk.split())
 
 
 def scan_text(relative: str, text: str) -> list[Finding]:
+    secret_spans = find_secret_spans(text)
     findings: list[Finding] = []
     for rule in ALL_RULES:
         for match in rule.pattern.finditer(text):
@@ -121,7 +151,9 @@ def scan_text(relative: str, text: str) -> list[Finding]:
                     line=line,
                     column=col,
                     message=rule.message,
-                    preview=f"<REDACTED:{rule.name}>" if rule.kind == "secret" else preview(text, match.start(), match.end()),
+                    preview=f"<REDACTED:{rule.name}>"
+                    if rule.kind == "secret"
+                    else preview(text, match.start(), match.end(), secret_spans),
                 )
             )
     findings.sort(key=lambda f: (-SEVERITY_ORDER[f.severity], f.file, f.line, f.column, f.rule))
