@@ -14,13 +14,18 @@ class Finding:
     kind: str
     rule: str
     file: str
+    raw_file: str
     line: int
     column: int
     message: str
     preview: str
 
     def to_dict(self) -> dict[str, object]:
-        return asdict(self)
+        data = asdict(self)
+        # raw_file is for SARIF navigability (opt-in via --sarif-real-paths);
+        # drop it here so the JSON report doesn't include the real path.
+        data.pop("raw_file")
+        return data
 
 
 @dataclass
@@ -136,7 +141,8 @@ def preview(text: str, start: int, end: int, secret_spans: Iterable[tuple[int, i
     return " ".join(chunk.split())
 
 
-def scan_text(relative: str, text: str) -> list[Finding]:
+def scan_text(relative: str, text: str, *, raw_file: str | None = None) -> list[Finding]:
+    display_file = redact_text(relative)
     secret_spans = find_secret_spans(text)
     findings: list[Finding] = []
     for rule in ALL_RULES:
@@ -147,7 +153,8 @@ def scan_text(relative: str, text: str) -> list[Finding]:
                     severity=rule.severity,
                     kind=rule.kind,
                     rule=rule.name,
-                    file=relative,
+                    file=display_file,
+                    raw_file=raw_file if raw_file is not None else relative,
                     line=line,
                     column=col,
                     message=rule.message,
@@ -156,7 +163,7 @@ def scan_text(relative: str, text: str) -> list[Finding]:
                     else preview(text, match.start(), match.end(), secret_spans),
                 )
             )
-    findings.sort(key=lambda f: (-SEVERITY_ORDER[f.severity], f.file, f.line, f.column, f.rule))
+    findings.sort(key=lambda f: (-SEVERITY_ORDER[f.severity], f.raw_file, f.line, f.column, f.rule))
     return findings
 
 
@@ -196,16 +203,17 @@ def scan_path(
 
     for path in iter_files(root_path, excludes):
         relative = path.relative_to(base).as_posix()
+        display_relative = redact_text(relative)
         size = path.stat().st_size
         if size > max_file_bytes:
-            files.append(ScannedFile(path, relative, None, f"large file ({size} bytes)", size))
+            files.append(ScannedFile(path, display_relative, None, f"large file ({size} bytes)", size))
             continue
         data = path.read_bytes()
         if not is_probably_text(path, data):
-            files.append(ScannedFile(path, relative, None, "binary or non-text file", size))
+            files.append(ScannedFile(path, display_relative, None, "binary or non-text file", size))
             continue
         text = data.decode("utf-8", errors="replace")
-        files.append(ScannedFile(path, relative, text, None, size))
+        files.append(ScannedFile(path, display_relative, text, None, size))
         findings.extend(scan_text(relative, text))
 
     return ScanReport(root_path, files, findings)
@@ -213,7 +221,7 @@ def scan_path(
 
 def scan_text_input(text: str, *, name: str = "<stdin>") -> ScanReport:
     pseudo = Path(name)
-    scanned = ScannedFile(pseudo, name, text, None, len(text.encode("utf-8")))
+    scanned = ScannedFile(pseudo, redact_text(name), text, None, len(text.encode("utf-8")))
     return ScanReport(pseudo, [scanned], scan_text(name, text))
 
 

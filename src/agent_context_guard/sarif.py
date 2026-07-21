@@ -11,7 +11,7 @@ LEVELS = {
 }
 
 
-def render_sarif(report: ScanReport) -> dict[str, object]:
+def render_sarif(report: ScanReport, *, real_paths: bool = False) -> dict[str, object]:
     rules = [_rule(rule_id, findings) for rule_id, findings in _group_by_rule(report.findings).items()]
     return {
         "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
@@ -25,7 +25,7 @@ def render_sarif(report: ScanReport) -> dict[str, object]:
                         "rules": rules,
                     }
                 },
-                "results": [_result(finding) for finding in report.findings],
+                "results": [_result(finding, real_paths=real_paths) for finding in report.findings],
             }
         ],
     }
@@ -50,7 +50,11 @@ def _rule(rule_id: str, findings: list[Finding]) -> dict[str, object]:
     }
 
 
-def _result(finding: Finding) -> dict[str, object]:
+def _result(finding: Finding, *, real_paths: bool) -> dict[str, object]:
+    # Redacted by default, like every other output surface. real_paths is an
+    # explicit opt-in for code-scanning navigability — it puts finding.raw_file
+    # (which may be secret-shaped) into the uploaded SARIF.
+    uri = finding.raw_file if real_paths else finding.file
     return {
         "ruleId": finding.rule,
         "level": LEVELS[finding.severity],
@@ -58,7 +62,7 @@ def _result(finding: Finding) -> dict[str, object]:
         "locations": [
             {
                 "physicalLocation": {
-                    "artifactLocation": {"uri": finding.file},
+                    "artifactLocation": {"uri": uri},
                     "region": {
                         "startLine": finding.line,
                         "startColumn": finding.column,

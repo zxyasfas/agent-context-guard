@@ -86,6 +86,10 @@ acg scan . --json
 # SARIF for code scanning tools
 acg scan . --sarif acg.sarif
 
+# SARIF with real (unredacted) file paths, for code-scanning navigability;
+# a secret-shaped filename or directory will appear as-is in the SARIF output
+acg scan . --sarif acg.sarif --sarif-real-paths
+
 # scan piped text
 curl -L https://example.com/issue.md | promptfence scan - --fail-on high
 

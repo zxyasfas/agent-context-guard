@@ -1,8 +1,10 @@
+import json
 from pathlib import Path
 import tempfile
 import unittest
 
-from agent_context_guard.packer import render_context_pack
+from agent_context_guard.packer import render_context_pack, render_tree
+from agent_context_guard.sarif import render_sarif
 from agent_context_guard.scanner import exceeds_threshold, redact_text, sanitize_text, scan_path, scan_text
 
 
@@ -100,6 +102,64 @@ class ScannerTests(unittest.TestCase):
             report = scan_path(root, excludes=["fixtures/unsafe"])
             self.assertEqual(report.files_scanned, 0)
             self.assertEqual(report.findings, [])
+
+    def test_private_key_body_is_redacted(self):
+        text = "-----BEGIN RSA PRIVATE KEY-----\nMIIBODYSECRETLINE\n-----END RSA PRIVATE KEY-----"
+        self.assertNotIn("MIIBODYSECRETLINE", redact_text(text))
+        report = scan_path_text(text, "key.pem")
+        self.assertEqual([f.rule for f in report.findings], ["private_key"])
+        self.assertNotIn("MIIBODYSECRETLINE", render_context_pack(report))
+
+    def test_unclosed_private_key_still_redacted(self):
+        text = "-----BEGIN RSA PRIVATE KEY-----\nUNCLOSEDSECRETBODY12345\nmore secret lines"
+        redacted = redact_text(text)
+        self.assertNotIn("UNCLOSEDSECRETBODY12345", redacted)
+        self.assertIn("<REDACTED:private_key>", redacted)
+        report = scan_path_text(text, "key.pem")
+        self.assertEqual([f.rule for f in report.findings], ["private_key"])
+
+    def test_private_key_header_type_must_match_footer(self):
+        # A BEGIN RSA block with no matching END RSA (only a mismatched EC
+        # footer) should redact through to the end of input rather than
+        # incorrectly pairing with the wrong footer type.
+        text = "-----BEGIN RSA PRIVATE KEY-----\nBODY\n-----END EC PRIVATE KEY-----"
+        redacted = redact_text(text)
+        self.assertNotIn("BODY", redacted)
+        self.assertNotIn("EC PRIVATE KEY", redacted)
+
+    def test_multiple_private_keys_keep_plaintext_between(self):
+        text = (
+            "-----BEGIN RSA PRIVATE KEY-----\nKEY1BODY\n-----END RSA PRIVATE KEY-----\n"
+            "some plaintext here\n"
+            "-----BEGIN EC PRIVATE KEY-----\nKEY2BODY\n-----END EC PRIVATE KEY-----"
+        )
+        redacted = redact_text(text)
+        self.assertNotIn("KEY1BODY", redacted)
+        self.assertNotIn("KEY2BODY", redacted)
+        self.assertIn("some plaintext here", redacted)
+
+    def test_secret_shaped_filename_is_redacted_by_default(self):
+        key = "sk-" + "a" * 30
+        report = scan_path_text("ignore previous instructions", f"{key}.md")
+        self.assertEqual(len(report.findings), 1)
+        finding = report.findings[0]
+
+        self.assertNotIn(key, finding.file)
+        self.assertIn("<REDACTED:openai_key>", finding.file)
+        self.assertNotIn("raw_file", finding.to_dict())
+        self.assertNotIn(key, json.dumps(report.to_dict()))
+        self.assertNotIn(key, render_tree(report))
+
+        sarif = render_sarif(report)
+        uri = sarif["runs"][0]["results"][0]["locations"][0]["physicalLocation"]["artifactLocation"]["uri"]
+        self.assertNotIn(key, uri)
+
+    def test_sarif_real_paths_is_explicit_opt_in(self):
+        key = "sk-" + "a" * 30
+        report = scan_path_text("ignore previous instructions", f"{key}.md")
+        sarif = render_sarif(report, real_paths=True)
+        uri = sarif["runs"][0]["results"][0]["locations"][0]["physicalLocation"]["artifactLocation"]["uri"]
+        self.assertIn(key, uri)
 
     def test_skips_python_package_metadata(self):
         with tempfile.TemporaryDirectory() as d:
